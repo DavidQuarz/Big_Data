@@ -1,8 +1,28 @@
+import time
 from pyspark.sql import SparkSession
+from pyspark import SparkContext, SparkConf
 from pyspark.sql.functions import *
+from py4j.java_gateway import java_import
+
 
 #Construction du contexte spark
-spark = SparkSession.builder.appName("spark streaming from Kafka").getOrCreate()
+spark = SparkSession.builder.appName("spark streaming from Kafka").enableHiveSupport().config('spark.sql.hive.thriftServer.singleSession', True).config("spark.executor.instances","3").config("spark.dynamicAllocation.enabled", "false").config("spark.shuffle.service.enabled", "false").config("spark.executor.memory","4g").config('hive.server2.thrift.port', '10016').getOrCreate()
+
+#conf = (SparkConf().setAppName("spark streaming from Kafka")
+#        .set("spark.shuffle.service.enabled", "false")
+#        .set("spark.dynamicAllocation.enabled", "false")
+#        .set("spark.cores.max", "1")
+#        .set("spark.executor.instances","3")
+#        .set("spark.executor.memory","4g")
+#        .set("spark.executor.cores","1"))
+
+#Stop the preloaded SparkContext and start a new one
+#sc = sc.stop()
+#sc=SparkContext(conf=conf)
+
+sc.setLogLevel('INFO')
+
+java_import(sc._gateway.jvm, "")
 
 #construction d'un schema template
 schema=spark.read.json("hdfs:///tmp/ttempJson.json",multiLine=True).schema
@@ -37,3 +57,7 @@ jsondf=jsondf.withColumn('attente',col('converted_expected')-col('converted_aime
 windowedjsondf= jsondf.groupBy(window(jsondf.timestamp, "2 minutes","2 minutes"),jsondf.DatedVehicleJourneyRef ,jsondf.StopPoint).agg(max('attente').alias('attente'))
 windowedjsondf.writeStream.outputMode("complete").format("console").option("numRows",10000).option("truncate",False).start().awaitTermination()
 
+sc._gateway.jvm.org.apache.spark.sql.hive.thriftserver.HiveThriftServer2.startWithContext(spark._jwrapped)
+
+while True:
+    time.sleep(10)

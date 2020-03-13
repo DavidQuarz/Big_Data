@@ -1,9 +1,13 @@
 import requests, json, time
 from kafka import KafkaProducer
+
+
 def get_access_token():
   urlOAuth= 'https://as.api.iledefrance-mobilites.fr/api/oauth/token'
-  client_id='342fe700-3f5c-417b-a36d-14b063461ecd'
-  client_secret='58032e87-8a3c-4d52-ac68-607dbca615e2'
+  #client_id='342fe700-3f5c-417b-a36d-14b063461ecd'
+  #client_secret='58032e87-8a3c-4d52-ac68-607dbca615e2'
+  client_id='1e090371-7332-4cd0-89e7-fe5b910e8206'
+  client_secret='7bd05965-8e19-4d3f-b105-ad7783381a6a'
   data =dict(grant_type='client_credentials' , scope='read-data',client_id=client_id,client_secret=client_secret)
   response= requests.post(urlOAuth, data=data, verify=False)
 
@@ -33,6 +37,7 @@ while True:
   for arret in arrets:
     response=getStationData(session,arret,defaultToken)
     i=i+1
+    print(response.status_code)
     if(response.status_code==401):
       defaultToken=get_access_token()
       response=getStationData(session,arret,defaultToken)

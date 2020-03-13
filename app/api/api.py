@@ -5,8 +5,13 @@ import json
 
 def get_token():
 	urlOAuth = 'https://as.api.iledefrance-mobilites.fr/api/oauth/token'
-	client_id='4c2c5433-85da-4961-a836-d05bccdbc769'
-	client_secret='506a0fc0-f369-4106-8138-1f47cc55b50b'
+	
+	#client_id='4c2c5433-85da-4961-a836-d05bccdbc769'
+        #client_secret='506a0fc0-f369-4106-8138-1f47cc55b50b'
+
+        #My Secret keys
+        client_id='1e090371-7332-4cd0-89e7-fe5b910e8206'
+        client_secret='7bd05965-8e19-4d3f-b105-ad7783381a6a'
 
 	data =dict(
 		grant_type='client_credentials',

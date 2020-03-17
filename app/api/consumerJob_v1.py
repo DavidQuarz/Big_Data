@@ -1,34 +1,19 @@
-import time
 from pyspark.sql import SparkSession
-from pyspark import SparkContext, SparkConf
+from pyspark_llap.sql.session import HiveWarehouseSession
+from hdfs import InsecureClient
 from pyspark.sql.functions import *
-from py4j.java_gateway import java_import
-
 
 #Construction du contexte spark
-spark = SparkSession.builder.appName("spark streaming from Kafka").enableHiveSupport().config('spark.sql.hive.thriftServer.singleSession', True).config("spark.executor.instances","3").config("spark.dynamicAllocation.enabled", "false").config("spark.shuffle.service.enabled", "false").config("spark.executor.memory","4g").config('hive.server2.thrift.port', '10016').getOrCreate()
-
-#conf = (SparkConf().setAppName("spark streaming from Kafka")
-#        .set("spark.shuffle.service.enabled", "false")
-#        .set("spark.dynamicAllocation.enabled", "false")
-#        .set("spark.cores.max", "1")
-#        .set("spark.executor.instances","3")
-#        .set("spark.executor.memory","4g")
-#        .set("spark.executor.cores","1"))
-
-#Stop the preloaded SparkContext and start a new one
-#sc = sc.stop()
-#sc=SparkContext(conf=conf)
-
-sc.setLogLevel('INFO')
-
-java_import(sc._gateway.jvm, "")
+spark = SparkSession.builder.appName("spark streaming from Kafka").getOrCreate()
 
 #construction d'un schema template
 schema=spark.read.json("hdfs:///tmp/ttempJson.json",multiLine=True).schema
 
+
+
 #enregistrement au topic Kafka 
 s1= spark.readStream.format("kafka").option("kafka.bootstrap.servers", "localhost:9092").option("subscribe","RealTime-Transilien-Topic").load()
+
 jsondf=s1.selectExpr("CAST(value as STRING)","CAST(timestamp as TIMESTAMP)")
 
 jsondf=jsondf.select(from_json(col("value"),schema),"timestamp")
@@ -54,10 +39,17 @@ jsondf=jsondf.select("DatedVehicleJourneyRef",col("value").alias("StopPoint"),co
 jsondf=jsondf.withColumn('converted_aimed',unix_timestamp(col('AimedDepartureTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
 jsondf=jsondf.withColumn('converted_expected',unix_timestamp(col('ExpectedDepartureTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
 jsondf=jsondf.withColumn('attente',col('converted_expected')-col('converted_aimed'))
-windowedjsondf= jsondf.groupBy(window(jsondf.timestamp, "2 minutes","2 minutes"),jsondf.DatedVehicleJourneyRef ,jsondf.StopPoint).agg(max('attente').alias('attente'))
-windowedjsondf.writeStream.outputMode("complete").format("console").option("numRows",10000).option("truncate",False).start().awaitTermination()
+windowedjsondf= jsondf.withWatermark("timestamp", "10 seconds").groupBy(window(col("timestamp"), "60 minutes","60 minutes"),jsondf.DatedVehicleJourneyRef ,jsondf.StopPoint,col("StopPointName"),col("DestinationDisplay")).agg(max('attente').alias('attente'))
 
-sc._gateway.jvm.org.apache.spark.sql.hive.thriftserver.HiveThriftServer2.startWithContext(spark._jwrapped)
+windowedjsondf=windowedjsondf.selectExpr("CAST(window.start as STRING)","CAST(window.end as STRING)","DatedVehicleJourneyRef","StopPoint","StopPointName","DestinationDisplay","attente")
 
-while True:
-    time.sleep(10)
+query=windowedjsondf.writeStream\
+      .format(HiveWarehouseSession.STREAM_TO_STREAM)\
+	  .outputMode("update")\
+	  .trigger(processingTime='2 minutes')\
+      .option("metastore", "thrift://localhost:9083")\
+      .option("db", "default")\
+      .option("table", "transilien")\
+	  .option("checkpointLocation", "checkpoint_stream")\
+	  .start()
+query.awaitTermination()

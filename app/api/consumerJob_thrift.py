@@ -1,14 +1,26 @@
 from pyspark.sql import SparkSession
+from hdfs import InsecureClient
 from pyspark.sql.functions import *
+from py4j.java_gateway import java_import
 
 #Construction du contexte spark
-spark = SparkSession.builder.appName("spark streaming from Kafka").getOrCreate()
+spark = SparkSession.builder \
+  .appName("Embedding Spark Thrift Server") \
+  .config("spark.sql.hive.thriftServer.singleSession", "True") \
+  .config("hive.server2.thrift.port", "10001") \
+  .config("javax.jdo.option.ConnectionURL", \
+  "jdbc:derby:;databaseName=metastore_db2;create=true") \
+  .enableHiveSupport() \
+  .getOrCreate()
 
 #construction d'un schema template
 schema=spark.read.json("hdfs:///tmp/ttempJson.json",multiLine=True).schema
 
+
+
 #enregistrement au topic Kafka 
 s1= spark.readStream.format("kafka").option("kafka.bootstrap.servers", "localhost:9092").option("subscribe","RealTime-Transilien-Topic").load()
+
 jsondf=s1.selectExpr("CAST(value as STRING)","CAST(timestamp as TIMESTAMP)")
 
 jsondf=jsondf.select(from_json(col("value"),schema),"timestamp")
@@ -34,6 +46,22 @@ jsondf=jsondf.select("DatedVehicleJourneyRef",col("value").alias("StopPoint"),co
 jsondf=jsondf.withColumn('converted_aimed',unix_timestamp(col('AimedDepartureTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
 jsondf=jsondf.withColumn('converted_expected',unix_timestamp(col('ExpectedDepartureTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
 jsondf=jsondf.withColumn('attente',col('converted_expected')-col('converted_aimed'))
-windowedjsondf= jsondf.groupBy(window(jsondf.timestamp, "2 minutes","2 minutes"),jsondf.DatedVehicleJourneyRef ,jsondf.StopPoint).agg(max('attente').alias('attente'))
-windowedjsondf.writeStream.outputMode("complete").format("console").option("numRows",10000).option("truncate",False).start().awaitTermination()
+windowedjsondf= jsondf.withWatermark("timestamp", "10 seconds").groupBy(window(col("timestamp"), "60 minutes","60 minutes"),jsondf.DatedVehicleJourneyRef ,jsondf.StopPoint,col("StopPointName"),col("DestinationDisplay")).agg(max('attente').alias('attente'))
 
+windowedjsondf=windowedjsondf.selectExpr("CAST(window.start as STRING)","CAST(window.end as STRING)","DatedVehicleJourneyRef","StopPoint","StopPointName","DestinationDisplay","attente")
+windowedjsondf.createOrReplaceTempView("ratp")
+
+""" LAUNCH STS """
+java_import(spark.sparkContext._gateway.jvm, "")
+spark.sparkContext._gateway.jvm.org.apache.spark.sql.hive.thriftserver \
+  .HiveThriftServer2.startWithContext(spark._jwrapped)
+""" STS RUNNING """
+
+query=windowedjsondf.writeStream\
+	  .outputMode("update")\
+      .format("memory")\
+	  .trigger(processingTime='2 minutes')\
+      .queryName("ratp")\
+      .option("truncate",False)\
+	  .start()
+query.awaitTermination()

@@ -1,10 +1,10 @@
 # Projet Big Data - Mobilité Ile-de-France
 
 ## Prérequis
-### 1/ Installation de HDP 3.0.1###
+### 1/ Installation de HDP 3.0.1
 Suivre la procédure d'installation <a href=https://github.com/qge/hdp><a/>
 
-###2/ Lancement de HDP (si ce n'est pas fait)###
+### 2/ Lancement de HDP (si ce n'est pas fait)
 Se connecter à l'instance EC2 et lancer les conteneurs Docker
 
 ```
@@ -12,12 +12,12 @@ sudo systemctl start docker
 docker start <docker-hdp> <docker-proxy>
 ```
 
-###3/ Connexion à la Sandbox HDP###
+### 3/ Connexion à la Sandbox HDP
 
 ```
 docker exec -ti <docker-hdp> bin/bash
 ```
-###4/ Transfert du fichier du ttempJson.json vers HDFS###
+### 4/ Transfert du fichier du ttempJson.json vers HDFS
 Le fichier ttempJson.json contient la structure de données du stream.
 
 ```
@@ -39,16 +39,16 @@ python producerKafka.py
 
 <p>Dans un autre terminal:</p>
 
-**Lancement du consumer**
 ```
+#Lancement du consumer consumerJob_thrift_v2.py
 spark-submit \
 --packages org.apache.spark:spark-sql-kafka-0-10_2.11:2.3.0 \
 --conf spark.sql.hive.thriftServer.singleSession=true \
   consumerJob_thrift_v2.py
 ```
 
-**Création de la table permanente "transilien" dans Beeline (à faire une seule fois)**
 ```
+#Création de la table permanente "transilien" dans Beeline (à faire une seule fois)
 CREATE EXTERNAL TABLE IF NOT EXISTS transilien(
   `start` STRING,
   `end` STRING,
@@ -65,8 +65,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS transilien(
   LOCATION '/user/root/transilien';
 ```
 
-**Création de la crontab**
 ```
+#Création de la crontab
 */2 * * * * /usr/hdp/current/spark2-thriftserver/bin/beeline \
 	-u jdbc:hive2://localhost:10001 --outputformat=csv2 \
 	-e "INSERT OVERWRITE TABLE transilien SELECT * FROM ratp;"
@@ -77,8 +77,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS transilien(
 <p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". En raison de problème de compatibilité entre logiciels, Tableau Software ne parvient pas lire les tables temporaires et donc le format "memory". Cette solution a été abandonnée. Il est a noté que ce problème a été résolu dans les versions postérieures des logiciels que nous utilisons actuellement.</p>
 <p>Dans un autre terminal.</p>
 
-**Lancement du consumer**
 ```
+#Lancement du consumer consumerJob_thrift_v0.py
 spark-submit \
 --packages org.apache.spark:spark-sql-kafka-0-10_2.11:2.3.0 \
 --conf spark.sql.hive.thriftServer.singleSession=true \
@@ -89,8 +89,8 @@ spark-submit \
 <p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". Les données de l'output sont ensuite persistées dans une table créée manuellement sur HIVE. Cette solution permet à Tableau Softawre d'accéder aux données depuis HIVE. Néanmoins, en raison du temps de requetage trop long, cette solution a été abandonnée.</p>
 <p>Dans un autre terminal.</p>
 
-**Création de la table "transilien" sur Data Analytics Studio (à faire une seule fois)**
 ```
+#Création de la table "transilien" sur Data Analytics Studio (à faire une seule fois)
 CREATE TABLE `default`.`transilien` (
   `start` STRING,
   `end` STRING,
@@ -102,8 +102,8 @@ CREATE TABLE `default`.`transilien` (
 )
 ```
 
-**Lancement du consumer**
 ```
+#Lancement du consumer consumerJob_thrift_v1.py
 spark-submit\
   --jars /usr/hdp/3.0.1.0-187/hive_warehouse_connector/hive-warehouse-connector-assembly-1.0.0.3.0.1.0-187.jar \
   --py-files /usr/hdp/3.0.1.0-187/hive_warehouse_connector/pyspark_hwc-1.0.0.3.0.1.0-187.zip \

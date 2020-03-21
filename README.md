@@ -25,7 +25,7 @@ hdfs dfs –put <PATH/TO/Big_Data/app/api/ttempJson.json> /tmp/ttempJson.json
 ```
 
 ## Lancement du producer Kafka
-Ouvir un termnal, se positionner dans le répertoire Big_Data/app/api et lancer le producer.
+Ouvir un terminal, se positionner dans le répertoire Big_Data/app/api et lancer le producer.
 
 ```
 python producerKafka.py
@@ -52,7 +52,7 @@ spark-submit \
 ```
 /usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001
 ```
-<p>Dans Beeline, saisir entrer la commande:</p>
+<p>Dans Beeline, saisir la commande:</p>
 
 ```
 #Création de la table permanente "transilien" dans Beeline (à faire une seule fois)
@@ -72,7 +72,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS transilien(
   LOCATION '/user/root/transilien';
 ```
 
-<p>Sortir de Beeline, et modfier la crontab de la sandbox:</p>
+<p>Sortir de Beeline, et modifier la crontab de la sandbox:</p>
 
 ```
 #Création de la crontab
@@ -87,7 +87,7 @@ crontab -e
 ### Solutions envisagées et abandonnées 
 #### Stockage dans Thrift (memory)
 <p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". En raison de problème de compatibilité entre logiciels, Tableau Software ne parvient pas lire les tables temporaires et donc le format "memory". Cette solution a été abandonnée. Il est a noté que ce problème a été résolu dans les versions postérieures des logiciels que nous utilisons actuellement.</p>
-<p>Dans un autre terminal.</p>
+<p>Ouvrir un nouveau terminal</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v0.py
@@ -99,7 +99,7 @@ spark-submit \
 
 #### Stockage dans Thrift (memory) + Persistence dans HIVE
 <p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". Les données de l'output sont ensuite persistées dans une table créée manuellement sur HIVE. Cette solution permet à Tableau Softawre d'accéder aux données depuis HIVE. Néanmoins, en raison du temps de requetage trop long, cette solution a été abandonnée.</p>
-<p>Dans un autre terminal.</p>
+<p>Se connecter à Data Analytics Studio (port 30800), onglet Compose :</p>
 
 ```
 #Création de la table "transilien" sur Data Analytics Studio (à faire une seule fois)
@@ -113,6 +113,8 @@ CREATE TABLE `default`.`transilien` (
   `attente` BIGINT
 )
 ```
+
+<p>Ouvrir un nouveau terminal</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v1.py

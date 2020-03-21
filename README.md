@@ -2,7 +2,7 @@
 
 ## Prérequis
 ### 1/ Installation de HDP 3.0.1
-Suivre la procédure d'installation <a href=https://github.com/qge/hdp><a/>
+Suivre la procédure d'installation <https://github.com/qge/hdp>
 
 ### 2/ Lancement de HDP (si ce n'est pas fait)
 Se connecter à l'instance EC2 et lancer les conteneurs Docker
@@ -21,7 +21,7 @@ docker exec -ti <docker-hdp> bin/bash
 Le fichier ttempJson.json contient la structure de données du stream.
 
 ```
-hdfs dfs –put <path-local> <path-hdfs>
+hdfs dfs –put <PATH/TO/Big_Data/app/api/ttempJson.json> /tmp/ttempJson.json
 ```
 
 ## Lancement du producer Kafka
@@ -33,11 +33,11 @@ python producerKafka.py
 
 ## Lancement du consumer Spark Streaming
 ### Solution retenue : Stockage dans Thrift (memory + csv)
-<p>Idéalement, notre consumer stocke les données issues du stream au format "memory" sur Thrift. Ces données sont ensuite récupérées par Tableau Software au moyen de Spark Trift Server qui expose les données. En raison de problèmes de compatbilité des logiciels à notre disposition, Tableau Software ne parvient pas à lire les données au format "memory" depuis Thrift.</p>
+<p>Idéalement, notre consumer stocke les données issues du stream au format "memory" sur Thrift. Ces données sont ensuite récupérées par Tableau Software au moyen de Spark Trift Server (STS) qui expose les données. En raison de problèmes de compatibilité des logiciels à notre disposition, Tableau Software ne parvient pas à lire les données au format "memory" depuis STS.</p>
 
 <p>Pour contourner ce problème, nous stockons toujours la sortie du consumer dans Thrift au format "memory" dans une table temporaire. Nous créons dans la même instance Thrift une autre table permanente au format "csv". Avec crontab, nous écrasons toutes les 2 minutes la table permanente avec les données de la table temporaire et en nous assurant de la bonne structure de données à insérer.</p>
 
-<p>Dans un autre terminal:</p>
+<p>Ouvir un nouveau terminal et entrer la commande suivante (en s'assurant être bien dans le répertoire Big_Data/app/api:</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v2.py
@@ -46,6 +46,13 @@ spark-submit \
 --conf spark.sql.hive.thriftServer.singleSession=true \
   consumerJob_thrift_v2.py
 ```
+
+<p>Lancer un autre terminal puis lancer Beeline:</p>
+
+```
+/usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001
+```
+<p>Dans Beeline, saisir entrer la commande:</p>
 
 ```
 #Création de la table permanente "transilien" dans Beeline (à faire une seule fois)
@@ -65,11 +72,16 @@ CREATE EXTERNAL TABLE IF NOT EXISTS transilien(
   LOCATION '/user/root/transilien';
 ```
 
+<p>Sortir de Beeline, et modfier la crontab de la sandbox:</p>
+
 ```
 #Création de la crontab
-*/2 * * * * /usr/hdp/current/spark2-thriftserver/bin/beeline \
-	-u jdbc:hive2://localhost:10001 --outputformat=csv2 \
-	-e "INSERT OVERWRITE TABLE transilien SELECT * FROM ratp;"
+crontab -e
+```
+
+```
+#Création de la tâche planifiée
+*/2 * * * * /usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001 --outputformat=csv2 -e "INSERT OVERWRITE TABLE transilien SELECT * FROM ratp;"
 ```
 
 ### Solutions envisagées et abandonnées 

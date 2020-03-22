@@ -124,7 +124,7 @@ spark-submit\
   --conf spark.security.credentials.hiveserver2.enabled=false\
   --packages org.apache.spark:spark-sql-kafka-0-10_2.11:2.3.0 consumerJob_thrift_v1.py
 ```
-## Exploitation des données de la ligne H (temps d d'attente)
+## Exploitation des données de la ligne H (temps d'attente)
 Les données liées au temps d'attente sont exploitées dans le dashboard de Tableau Software dashboard_ligneH.twb.
 
 ## Estimation de la position d'un train de la ligne H

@@ -1,7 +1,9 @@
 from pyspark.sql import SparkSession
 from hdfs import InsecureClient
-from pyspark.sql.functions import *
 from py4j.java_gateway import java_import
+from pyspark.sql.functions import *
+import time
+#version avec 3 streams un query, previous & next
 
 #Construction du contexte spark
 spark = SparkSession.builder \
@@ -36,16 +38,25 @@ jsondf=jsondf.select("col.MonitoredVehicleJourney.FramedVehicleJourneyRef.DatedV
                 "col.MonitoredVehicleJourney.MonitoredCall.StopPointName",\
                "col.MonitoredVehicleJourney.MonitoredCall.DestinationDisplay",\
                "col.MonitoredVehicleJourney.MonitoredCall.AimedDepartureTime",\
+               "col.MonitoredVehicleJourney.MonitoredCall.ExpectedArrivalTime",\
                "col.MonitoredVehicleJourney.MonitoredCall.ExpectedDepartureTime","timestamp")
 
 jsondf=jsondf.withColumn("StopPointName", explode("StopPointName"))
 jsondf=jsondf.withColumn("DestinationDisplay", explode("DestinationDisplay"))
 
-jsondf=jsondf.select("DatedVehicleJourneyRef",col("value").alias("StopPoint"),col("StopPointName.value").alias("StopPointName"),col("DestinationDisplay.value").alias("DestinationDisplay"),"AimedDepartureTime","ExpectedDepartureTime","timestamp")
+jsondf=jsondf.select("DatedVehicleJourneyRef",col("value").alias("StopPoint"),col("StopPointName.value").alias("StopPointName"),col("DestinationDisplay.value").alias("DestinationDisplay"),"AimedDepartureTime","ExpectedArrivalTime","ExpectedDepartureTime","timestamp")
 #Convertir les dates au format unix timestamp pour pouvoir faire la difference
 jsondf=jsondf.withColumn('converted_aimed',unix_timestamp(col('AimedDepartureTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
 jsondf=jsondf.withColumn('converted_expected',unix_timestamp(col('ExpectedDepartureTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
+jsondf=jsondf.withColumn('converted_expected_arrival',unix_timestamp(col('ExpectedArrivalTime'), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
 jsondf=jsondf.withColumn('attente',col('converted_expected')-col('converted_aimed'))
+
+#traitement additionnel pour la prediction de localisation
+#on garde pour chaque station l'heure de depart expected le plus a jour
+passagedf=jsondf.groupBy(jsondf.DatedVehicleJourneyRef ,jsondf.StopPointName,jsondf.DestinationDisplay).agg(max('converted_expected').alias('converted_expected'),max('converted_expected_arrival').alias('converted_expected_arrival'))
+passagedf.createGlobalTempView("passage")
+
+
 windowedjsondf= jsondf.withWatermark("timestamp", "10 seconds").groupBy(window(col("timestamp"), "60 minutes","60 minutes"),jsondf.DatedVehicleJourneyRef ,jsondf.StopPoint,col("StopPointName"),col("DestinationDisplay")).agg(max('attente').alias('attente'))
 
 windowedjsondf=windowedjsondf.selectExpr("CAST(window.start as STRING)","CAST(window.end as STRING)","DatedVehicleJourneyRef","StopPoint","StopPointName","DestinationDisplay","attente")
@@ -64,4 +75,14 @@ query=windowedjsondf.writeStream\
       .queryName("ratp")\
       .option("truncate",False)\
 	  .start()
+
+query1=passagedf.writeStream\
+	  .outputMode("complete")\
+      .format("memory")\
+	  .trigger(processingTime='1 minutes')\
+      .queryName("passage")\
+      .option("truncate",False)\
+	  .start()
 query.awaitTermination()
+
+

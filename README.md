@@ -5,7 +5,7 @@
 Suivre la procédure d'installation <https://github.com/qge/hdp>
 
 ### 2/ Lancement de HDP (si ce n'est pas fait)
-Se connecter à l'instance EC2 et lancer les conteneurs Docker
+Se connecter à l'instance EC2 et lancer les conteneurs Docker.
 
 ```
 sudo systemctl start docker
@@ -37,7 +37,7 @@ python producerKafka.py
 
 <p>Pour contourner ce problème, nous stockons toujours la sortie du consumer dans Thrift au format "memory" dans une table temporaire. Nous créons dans la même instance Thrift une autre table permanente au format "csv". Avec crontab, nous écrasons toutes les 2 minutes la table permanente avec les données de la table temporaire et en nous assurant de la bonne structure de données à insérer.</p>
 
-<p>Ouvir un nouveau terminal et entrer la commande suivante (en s'assurant être bien dans le répertoire Big_Data/app/api:</p>
+<p>Ouvrir un nouveau terminal et entrer la commande suivante (en s'assurant être bien dans le répertoire Big_Data/app/api :</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v2.py
@@ -47,12 +47,12 @@ spark-submit \
   consumerJob_thrift_v2.py
 ```
 
-<p>Lancer un autre terminal puis lancer Beeline:</p>
+<p>Lancer un autre terminal puis lancer Beeline :</p>
 
 ```
 /usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001
 ```
-<p>Dans Beeline, saisir la commande:</p>
+<p>Dans Beeline, créer la table "transilien" en saissant la commande :</p>
 
 ```
 #Création de la table permanente "transilien" dans Beeline (à faire une seule fois)
@@ -72,7 +72,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS transilien(
   LOCATION '/user/root/transilien';
 ```
 
-<p>Sortir de Beeline, et modifier la crontab de la sandbox:</p>
+<p>Sortir de Beeline, et modifier la crontab de la sandbox :</p>
 
 ```
 #Création de la crontab
@@ -87,7 +87,7 @@ crontab -e
 ### Solutions envisagées et abandonnées 
 #### Stockage dans Thrift (memory)
 <p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". En raison de problème de compatibilité entre logiciels, Tableau Software ne parvient pas lire les tables temporaires et donc le format "memory". Cette solution a été abandonnée. Il est a noté que ce problème a été résolu dans les versions postérieures des logiciels que nous utilisons actuellement.</p>
-<p>Ouvrir un nouveau terminal</p>
+<p>Ouvrir un nouveau terminal :</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v0.py
@@ -114,7 +114,7 @@ CREATE TABLE `default`.`transilien` (
 )
 ```
 
-<p>Ouvrir un nouveau terminal</p>
+<p>Ouvrir un nouveau terminal :</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v1.py
@@ -124,3 +124,48 @@ spark-submit\
   --conf spark.security.credentials.hiveserver2.enabled=false\
   --packages org.apache.spark:spark-sql-kafka-0-10_2.11:2.3.0 consumerJob_thrift_v1.py
 ```
+## Exploitation des données de la ligne H (temps d d'attente)
+Les données liées au temps d'attente sont exploitées dans le dashboard de Tableau Software dashboard_ligneH.twb.
+
+## Estimation de la position d'un train de la ligne H
+Pour estimer la position d'un train, nous stockons pour chaque gare ses prochaines heures de passage communiquées par l'API. Ses données sont stockées dans STS dans la table "passages". La position d'un train est déterminée par rapport à l'heure actuelle :
+* Gare de départ à l'instant t : gare dont la prochaine heure de départ est la plus proche de l'heure actuelle par valeur inférieure.
+* Gare d'arrivée à l'instant t : gare dont la prochaine heure de départ est la plus proche de l'heure actuelle par valeur supérieure.
+
+
+<p>S'assurer que le producer et le consumer sont bien lancés. Dans le docker Sandbox HDP, lancer Beeline et créer la table "passages" en saissant la commande :</p>
+
+```
+#Connexion à Beeline
+/usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001
+```
+
+```
+#Création de la table permanente "passages" dans Beeline (à faire une seule fois)
+CREATE EXTERNAL TABLE IF NOT EXISTS passages(
+   `DatedVehicleJourneyRef` STRING,
+   `StopPointName` STRING,
+  `DestinationDisplay` STRING,
+  `converted_expected` BIGINT,
+  `converted_expected_arrival` BIGINT
+  )
+  COMMENT 'Transilien data passages'
+  ROW FORMAT DELIMITED
+  FIELDS TERMINATED BY ','
+  STORED AS TEXTFILE
+  LOCATION '/user/root/passages';
+```
+
+<p>Sortir de Beeline, et modifier la crontab de la sandbox :</p>
+
+```
+#Création de la crontab
+crontab -e
+```
+
+```
+#Création de la tâche planifiée
+*/1 * * * * /usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001 --outputformat=csv2 -e "INSERT OVERWRITE TABLE passages SELECT * FROM passage;"
+```
+
+La position du train est donnée dans le dashboard de Tableau Software progression_passage.twb.

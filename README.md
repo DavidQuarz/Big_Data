@@ -25,7 +25,7 @@ hdfs dfs –put <PATH/TO/Big_Data/app/api/ttempJson.json> /tmp/ttempJson.json
 ```
 
 ## Lancement du producer Kafka
-Ouvir un terminal, se positionner dans le répertoire Big_Data/app/api et lancer le producer.
+Ouvrir un terminal, se positionner dans le répertoire Big_Data/app/api et lancer le producer.
 
 ```
 python producerKafka.py
@@ -33,11 +33,11 @@ python producerKafka.py
 
 ## Lancement du consumer Spark Streaming
 ### Solution retenue : Stockage dans Thrift (memory + csv)
-<p>Idéalement, notre consumer stocke les données issues du stream au format "memory" sur Thrift. Ces données sont ensuite récupérées par Tableau Software au moyen de Spark Trift Server (STS) qui expose les données. En raison de problèmes de compatibilité des logiciels à notre disposition, Tableau Software ne parvient pas à lire les données au format "memory" depuis STS.</p>
+<p>Idéalement, notre consumer stocke les données issues du stream au format "memory" sur Thrift. Ces données sont ensuite récupérées par Tableau Software au moyen de Spark Thrift Server (STS) qui expose les données Spark. En raison de problèmes de compatibilité des logiciels à notre disposition, Tableau Software ne parvient pas à lire les données au format "memory" depuis STS.</p>
 
-<p>Pour contourner ce problème, nous stockons toujours la sortie du consumer dans Thrift au format "memory" dans une table temporaire. Nous créons dans la même instance Thrift une autre table permanente au format "csv". Avec crontab, nous écrasons toutes les 2 minutes la table permanente avec les données de la table temporaire et en nous assurant de la bonne structure de données à insérer.</p>
+<p>Pour contourner ce problème, nous stockons toujours la sortie du consumer dans Thrift au format "memory" dans une table temporaire. Nous créons dans la même instance Thrift une autre table permanente au format "csv". Avec crontab, nous écrasons toutes les 2 minutes la table permanente avec les données de la table temporaire et tout en nous assurant de la bonne structure de données à insérer.</p>
 
-<p>Ouvrir un nouveau terminal et entrer la commande suivante (en s'assurant être bien dans le répertoire Big_Data/app/api :</p>
+<p>Ouvrir un nouveau terminal et entrer la commande suivante (depuis le répertoire Big_Data/app/api :</p>
 
 ```
 #Lancement du consumer consumerJob_thrift_v2.py
@@ -52,7 +52,7 @@ spark-submit \
 ```
 /usr/hdp/current/spark2-thriftserver/bin/beeline -u jdbc:hive2://localhost:10001
 ```
-<p>Dans Beeline, créer la table "transilien" en saissant la commande :</p>
+<p>Dans Beeline, créer la table "transilien" en saisissant la commande :</p>
 
 ```
 #Création de la table permanente "transilien" dans Beeline (à faire une seule fois)
@@ -86,7 +86,7 @@ crontab -e
 
 ### Solutions envisagées et abandonnées 
 #### Stockage dans Thrift (memory)
-<p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". En raison de problème de compatibilité entre logiciels, Tableau Software ne parvient pas lire les tables temporaires et donc le format "memory". Cette solution a été abandonnée. Il est a noté que ce problème a été résolu dans les versions postérieures des logiciels que nous utilisons actuellement.</p>
+<p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". En raison de problèmes de compatibilité entre logiciels, Tableau Software ne parvient pas lire les tables temporaires et donc le format "memory". Cette solution a été abandonnée. Il est a noté que ce problème a été résolu dans les versions postérieures des logiciels que nous utilisons actuellement.</p>
 <p>Ouvrir un nouveau terminal :</p>
 
 ```
@@ -98,7 +98,7 @@ spark-submit \
 ```
 
 #### Stockage dans Thrift (memory) + Persistence dans HIVE
-<p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". Les données de l'output sont ensuite persistées dans une table créée manuellement sur HIVE. Cette solution permet à Tableau Softawre d'accéder aux données depuis HIVE. Néanmoins, en raison du temps de requetage trop long, cette solution a été abandonnée.</p>
+<p>Cette solution permet de stocker dans l'instance Thrift l'output du consumer au format "memory". Les données de l'output sont ensuite persistées dans une table créée manuellement sur HIVE. Cette solution permet à Tableau Software d'accéder aux données depuis HIVE. Néanmoins, en raison du temps de requêtage trop long, cette solution a été abandonnée.</p>
 <p>Se connecter à Data Analytics Studio (port 30800), onglet Compose :</p>
 
 ```
@@ -128,7 +128,7 @@ spark-submit\
 Les données liées au temps d'attente sont exploitées dans le dashboard de Tableau Software dashboard_ligneH.twb.
 
 ## Estimation de la position d'un train de la ligne H
-Pour estimer la position d'un train, nous stockons pour chaque gare ses prochaines heures de passage communiquées par l'API. Ses données sont stockées dans STS dans la table "passages". La position d'un train est déterminée par rapport à l'heure actuelle :
+Pour estimer la position d'un train, nous stockons pour chaque gare ses prochaines heures de passage communiquées par l'API. Ces données sont stockées dans STS dans la table "passages". La position d'un train est déterminée par rapport à l'heure actuelle :
 * Gare de départ à l'instant t : gare dont la prochaine heure de départ est la plus proche de l'heure actuelle par valeur inférieure.
 * Gare d'arrivée à l'instant t : gare dont la prochaine heure de départ est la plus proche de l'heure actuelle par valeur supérieure.
 
